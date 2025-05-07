@@ -223,43 +223,62 @@ void spawnEnemy() {
 
 // text
 void renderText(const char* text, float x, float y, float scale, glm::vec3 color) {
-    // 1) ask stb_easy_font to fill a CPU buffer
     static char buffer[99999];
     int quads = stb_easy_font_print(0, 0, (char*)text, nullptr, buffer, sizeof(buffer));
 
-    // 2) build an orthographic projection
+    // Convert each quad (4 vertices) into 2 triangles (6 vertices)
+    std::vector<float> vertices;
+    vertices.reserve(quads * 6 * 2); // 6 vertices per quad, 2 floats per vertex
+
+    for (int i = 0; i < quads; ++i) {
+        float* quad = (float*)(buffer + i * 4 * 16); // 4 vertices * 16 bytes each
+
+        // Extract 4 vertices
+        glm::vec2 v0 = { quad[0], quad[1] };
+        glm::vec2 v1 = { quad[4], quad[5] };
+        glm::vec2 v2 = { quad[8], quad[9] };
+        glm::vec2 v3 = { quad[12], quad[13] };
+
+        // Triangle 1: v0, v1, v2
+        vertices.push_back(v0.x); vertices.push_back(v0.y);
+        vertices.push_back(v1.x); vertices.push_back(v1.y);
+        vertices.push_back(v2.x); vertices.push_back(v2.y);
+
+        // Triangle 2: v0, v2, v3
+        vertices.push_back(v0.x); vertices.push_back(v0.y);
+        vertices.push_back(v2.x); vertices.push_back(v2.y);
+        vertices.push_back(v3.x); vertices.push_back(v3.y);
+    }
+
+    // Set up projection
     glm::mat4 proj = glm::ortho(0.f, (float)SCR_WIDTH, 0.f, (float)SCR_HEIGHT);
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
     glUniform3fv(glGetUniformLocation(shaderProgram, "color"), 1, glm::value_ptr(color));
 
-    // 3) upload the vertex data into a dynamic VBO
-    GLuint textVBO, textVAO;
-    glGenVertexArrays(1, &textVAO);
-    glGenBuffers(1, &textVBO);
-    glBindVertexArray(textVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, textVBO);
-    glBufferData(GL_ARRAY_BUFFER, quads * 4 * 2 * sizeof(float), buffer, GL_DYNAMIC_DRAW);
+    // Upload vertex data
+    GLuint VAO, VBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_DYNAMIC_DRAW);
 
-    // 4) set up attribute (location = 0: vec2 aPos)
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, (void*)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
 
-    // 5) draw the quads
-    // translate & scale via a model matrix
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), { x, y, 0.0f })
-        * glm::scale(glm::mat4(1.0f), { scale, scale, 1.0f });
+    // Apply model transform
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), { x, SCR_HEIGHT - y, 0.0f })
+        * glm::scale(glm::mat4(1.0f), { scale, -scale, 1.0f });
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-    
-    for (int i = 0; i < quads; ++i) {
-        glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
-    }
 
-    // 6) cleanup
-    glDeleteBuffers(1, &textVBO);
-    glDeleteVertexArrays(1, &textVAO);
+    // Draw all triangles
+    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(vertices.size() / 2));
+
+    // Cleanup
+    glDeleteBuffers(1, &VBO);
+    glDeleteVertexArrays(1, &VAO);
 }
-
 
 int main() {
     srand((unsigned)time(NULL));
@@ -268,7 +287,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Horizontal Shooter", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "CG Project", NULL, NULL);
     glfwMakeContextCurrent(window);
     glfwSetKeyCallback(window, keyCallback);
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
