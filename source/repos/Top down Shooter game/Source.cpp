@@ -3,7 +3,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <stb_image.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "stb_easy_font.h"
 
 #include <iostream>
@@ -46,8 +47,8 @@ std::vector<Bullet> Bullets;
 struct Enemy {
     glm::vec2 Position;
     glm::vec2 Size;
-    glm::vec3 Color;
     float     Speed;
+    GLuint    TexID;
 };
 std::vector<Enemy> Enemies;
 
@@ -59,6 +60,11 @@ unsigned int score = 0, highScore = 0;
 
 // shader program & quad
 unsigned int shaderProgram, VAO, VBO;
+
+// for textured enemies
+GLuint texVAO, texVBO;
+std::vector<GLuint> enemyTextures;
+unsigned int shaderProgramTex;
 
 // simple vertex+fragment
 const char* vertexSrc = R"(
@@ -151,6 +157,31 @@ void drawEntity(const Entity& e) {
     glBindVertexArray(0);
 }
 
+// for enemies and shooter
+void drawTexturedEntity(const Enemy& e) {
+    glUseProgram(shaderProgramTex);
+
+    // projection
+    glm::mat4 proj = glm::ortho(0.f, (float)SCR_WIDTH, 0.f, (float)SCR_HEIGHT, -1.f, 1.f);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgramTex, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
+
+    // model
+    glm::mat4 model =
+        glm::translate(glm::mat4(1.0f), glm::vec3(e.Position, 0.0f)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(e.Size, 1.0f));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgramTex, "model"), 1, GL_FALSE, glm::value_ptr(model));
+
+    // bind texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, e.TexID);
+    glUniform1i(glGetUniformLocation(shaderProgramTex, "sprite"), 0);
+
+    // draw the quad
+    glBindVertexArray(texVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+}
+
 // input
 bool keys[1024];
 void keyCallback(GLFWwindow* w, int key, int scancode, int action, int mods) {
@@ -218,11 +249,11 @@ void saveHighScore() {
 // spawn an enemy on the right, random Y
 void spawnEnemy() {
     Enemy e;
-    e.Size = glm::vec2(40, 40);
+    e.Size = glm::vec2(100, 100);
     e.Position = glm::vec2(SCR_WIDTH, rand() % (SCR_HEIGHT - (int)e.Size.y));
-    e.Color = glm::vec3(1.f, 0.2f, 0.2f);
     // negative ? moves left
     e.Speed = -(150.f + rand() % 100);
+    e.TexID = enemyTextures[rand() % enemyTextures.size()];
     Enemies.push_back(e);
 }
 
@@ -302,6 +333,76 @@ int main() {
     glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 
     initRenderer();
+
+    // Enemy textures
+    auto loadTexture = [&](const char* path) {
+        int w, h, chan;
+        stbi_set_flip_vertically_on_load(true);
+        unsigned char* data = stbi_load(path, &w, &h, &chan, STBI_rgb_alpha);
+        if (!data) { std::cerr << "Failed to load " << path << "\n"; return 0u; }
+        GLuint tex; glGenTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        stbi_image_free(data);
+        return tex;
+        };
+
+    // load enemy PNGs
+    enemyTextures.push_back(loadTexture("D:/Shooter game assets/Valkyrie 1.png"));
+    enemyTextures.push_back(loadTexture("D:/Shooter game assets/Valkyrie 2.png"));
+    enemyTextures.push_back(loadTexture("D:/Shooter game assets/Valkyrie 3.png"));
+
+    // compile a second shader that samples a texture:
+    const char* vsTex = R"(
+#version 330 core
+layout(location=0) in vec2 aPos;
+layout(location=1) in vec2 aTex;
+uniform mat4 projection, model;
+out vec2 TexCoord;
+void main(){
+    TexCoord = aTex;
+    gl_Position = projection * model * vec4(aPos,0,1);
+}
+)";
+    const char* fsTex = R"(
+#version 330 core
+in vec2 TexCoord;
+out vec4 FragColor;
+uniform sampler2D sprite;
+void main(){
+    FragColor = texture(sprite, TexCoord);
+}
+)";
+    shaderProgramTex = createProgram(vsTex, fsTex);
+
+    // setup a VAO/VBO for textured quads (pos + uv)
+    float quadData[] = {
+        // pos      // uv
+         0,1,       0,1,
+         1,0,       1,0,
+         0,0,       0,0,
+         0,1,       0,1,
+         1,1,       1,1,
+         1,0,       1,0
+    };
+    glGenVertexArrays(1, &texVAO);
+    glGenBuffers(1, &texVBO);
+    glBindVertexArray(texVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, texVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadData), quadData, GL_STATIC_DRAW);
+    // pos attr
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    // uv attr
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glBindVertexArray(0);
+
 
     // init player on left
     Player.Position = glm::vec2(20, SCR_HEIGHT / 2 - 25);
@@ -443,7 +544,7 @@ int main() {
                 drawEntity(Entity{ b.Position, glm::vec2(10,4), b.Color,0 });
             // enemies
             for (auto& e : Enemies)
-                drawEntity(Entity{ e.Position, e.Size, e.Color,0 });
+                drawTexturedEntity(e);
 
             // health bar
             float w = 200.f * glm::max(Player.Health, 0.f) / 100.f;
