@@ -4,7 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <stb_image.h>
-#include <stb_easy_font.h>
+#include "stb_easy_font.h"
 
 #include <iostream>
 #include <vector>
@@ -223,32 +223,43 @@ void spawnEnemy() {
 
 // text
 void renderText(const char* text, float x, float y, float scale, glm::vec3 color) {
-    static char buffer[99999]; // ~500 chars
-    int num_quads;
+    // 1) ask stb_easy_font to fill a CPU buffer
+    static char buffer[99999];
+    int quads = stb_easy_font_print(0, 0, (char*)text, nullptr, buffer, sizeof(buffer));
 
-    // Render font to buffer
-    num_quads = stb_easy_font_print(0, 0, (char*)text, nullptr, buffer, sizeof(buffer));
+    // 2) build an orthographic projection
+    glm::mat4 proj = glm::ortho(0.f, (float)SCR_WIDTH, 0.f, (float)SCR_HEIGHT);
+    glUseProgram(shaderProgram);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "color"), 1, glm::value_ptr(color));
 
-    // Save previous state
-    glPushMatrix();
-    glDisable(GL_TEXTURE_2D);
-    glEnableClientState(GL_VERTEX_ARRAY);
+    // 3) upload the vertex data into a dynamic VBO
+    GLuint textVBO, textVAO;
+    glGenVertexArrays(1, &textVAO);
+    glGenBuffers(1, &textVBO);
+    glBindVertexArray(textVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+    glBufferData(GL_ARRAY_BUFFER, quads * 4 * 2 * sizeof(float), buffer, GL_DYNAMIC_DRAW);
 
-    // Set color
-    glColor3f(color.r, color.g, color.b);
+    // 4) set up attribute (location = 0: vec2 aPos)
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, (void*)0);
 
-    // Position and scale
-    glTranslatef(x, y, 0);
-    glScalef(scale, scale, 1);
+    // 5) draw the quads
+    // translate & scale via a model matrix
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), { x, y, 0.0f })
+        * glm::scale(glm::mat4(1.0f), { scale, scale, 1.0f });
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    
+    for (int i = 0; i < quads; ++i) {
+        glDrawArrays(GL_TRIANGLE_FAN, i * 4, 4);
+    }
 
-    // Draw using vertex array
-    glVertexPointer(2, GL_FLOAT, 16, buffer);
-    glDrawArrays(GL_QUADS, 0, num_quads * 4);
-
-    // Restore state
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glPopMatrix();
+    // 6) cleanup
+    glDeleteBuffers(1, &textVBO);
+    glDeleteVertexArrays(1, &textVAO);
 }
+
 
 int main() {
     srand((unsigned)time(NULL));
@@ -354,9 +365,12 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         if (state == WELCOME) {
-            // very simple placeholder text... later you can add bitmap fonts
-            // here just clear to a dark blue
             glClearColor(0.05f, 0.05f, 0.2f, 1.f);
+
+            renderText("Welcome to the Game!", 200.0f, 200.0f, 2.0f, glm::vec3(1.0f, 1.0f, 1.0f)); //0.2f, 0.8f, 0.2f
+            renderText("Use W A S D to move", 240.0f, 300.0f, 1.2f, glm::vec3(0.7f, 0.7f, 0.7f));
+            renderText("Press SPACE to shoot", 240.0f, 340.0f, 1.2f, glm::vec3(0.7f, 0.7f, 0.7f));
+            renderText("Press ENTER to begin", 240.0f, 400.0f, 1.5f, glm::vec3(1.0f, 1.0f, 0.0f));
         }
         else if (state == INSTRUCTIONS) {
             glClearColor(0.1f, 0.1f, 0.2f, 1.f);
@@ -383,10 +397,26 @@ int main() {
             float w = 200.f * glm::max(Player.Health, 0.f) / 100.f;
             drawEntity(Entity{ glm::vec2(10,10), glm::vec2(w,20), glm::vec3(0.1f,0.8f,0.1f),0 });
 
-            // you can add text to show score
+            // text to show score
+            char scoreStr[32], healthStr[32];
+            sprintf_s(scoreStr, "Score: %d", score);
+            sprintf_s(healthStr, "Health: %.0f", Player.Health);
+            renderText(scoreStr, 20.0f, 560.0f, 1.2f, glm::vec3(1.0f, 1.0f, 1.0f));
+            renderText(healthStr, 20.0f, 530.0f, 1.0f, glm::vec3(0.6f, 1.0f, 0.6f));
         }
         else if (state == GAME_OVER) {
             glClearColor(0.2f, 0.05f, 0.05f, 1.f);
+            renderText("Game Over", 280.0f, 200.0f, 2.5f, glm::vec3(1.0f, 0.2f, 0.2f));
+
+            char finalScoreStr[64];
+            sprintf_s(finalScoreStr, "Your Score: %d", score);
+            renderText(finalScoreStr, 300.0f, 280.0f, 1.5f, glm::vec3(1.0f, 1.0f, 1.0f));
+
+            char highScoreStr[64];
+            sprintf_s(highScoreStr, "High Score: %d", highScore);
+            renderText(highScoreStr, 300.0f, 320.0f, 1.5f, glm::vec3(1.0f, 1.0f, 0.6f));
+
+            renderText("Press Enter to play again", 240.0f, 400.0f, 1.2f, glm::vec3(0.8f, 0.8f, 0.2f));
         }
 
         glfwSwapBuffers(window);
