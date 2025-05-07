@@ -185,10 +185,12 @@ void keyCallback(GLFWwindow* w, int key, int scancode, int action, int mods) {
 void processInput() {
     float v = 600.f * deltaTime;
     // only vertical movement
-    if (keys[GLFW_KEY_W] && Player.Position.y + Player.Size.y < SCR_HEIGHT)
+    if ((keys[GLFW_KEY_W] || keys[GLFW_KEY_UP]) && Player.Position.y + Player.Size.y < SCR_HEIGHT)
         Player.Position.y += v;
-    if (keys[GLFW_KEY_S] && Player.Position.y > 0)
+
+    if ((keys[GLFW_KEY_S] || keys[GLFW_KEY_DOWN]) && Player.Position.y > 0)
         Player.Position.y -= v;
+
     // shoot
     if (keys[GLFW_KEY_SPACE]) {
         static float lastShot = 0;
@@ -445,14 +447,15 @@ int main() {
 
             // health bar
             float w = 200.f * glm::max(Player.Health, 0.f) / 100.f;
+            renderText("Healthbar", 20.0f, 1000.0f, 3.0f, glm::vec3(1.0f, 1.0f, 1.0f));
             drawEntity(Entity{ glm::vec2(10,10), glm::vec2(w,20), glm::vec3(0.1f,0.8f,0.1f),0 });
 
             // text to show score
             char scoreStr[32], healthStr[32];
             sprintf_s(scoreStr, "Score: %d", score);
             sprintf_s(healthStr, "Health: %.0f", Player.Health);
-            renderText(scoreStr, 20.0f, 560.0f, 1.2f, glm::vec3(1.0f, 1.0f, 1.0f));
-            renderText(healthStr, 20.0f, 530.0f, 1.0f, glm::vec3(0.6f, 1.0f, 0.6f));
+            renderText(healthStr, 20.0f, 80.0f, 3.0f, glm::vec3(0.6f, 1.0f, 0.6f));
+            renderText(scoreStr, 20.0f, 130.0f, 3.0f, glm::vec3(1.0f, 1.0f, 1.0f));
         }
 
         else if (state == GAME_OVER) {
