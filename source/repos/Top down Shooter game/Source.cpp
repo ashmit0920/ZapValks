@@ -4,6 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <stb_image.h>
+#include <stb_easy_font.h>
 
 #include <iostream>
 #include <vector>
@@ -179,7 +180,7 @@ void keyCallback(GLFWwindow* w, int key, int scancode, int action, int mods) {
 }
 
 void processInput() {
-    float v = 300.f * deltaTime;
+    float v = 600.f * deltaTime;
     // only vertical movement
     if (keys[GLFW_KEY_W] && Player.Position.y + Player.Size.y < SCR_HEIGHT)
         Player.Position.y += v;
@@ -218,6 +219,35 @@ void spawnEnemy() {
     // negative ? moves left
     e.Speed = -(150.f + rand() % 100);
     Enemies.push_back(e);
+}
+
+// text
+void renderText(const char* text, float x, float y, float scale, glm::vec3 color) {
+    static char buffer[99999]; // ~500 chars
+    int num_quads;
+
+    // Render font to buffer
+    num_quads = stb_easy_font_print(0, 0, (char*)text, nullptr, buffer, sizeof(buffer));
+
+    // Save previous state
+    glPushMatrix();
+    glDisable(GL_TEXTURE_2D);
+    glEnableClientState(GL_VERTEX_ARRAY);
+
+    // Set color
+    glColor3f(color.r, color.g, color.b);
+
+    // Position and scale
+    glTranslatef(x, y, 0);
+    glScalef(scale, scale, 1);
+
+    // Draw using vertex array
+    glVertexPointer(2, GL_FLOAT, 16, buffer);
+    glDrawArrays(GL_QUADS, 0, num_quads * 4);
+
+    // Restore state
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glPopMatrix();
 }
 
 int main() {
@@ -311,6 +341,7 @@ int main() {
             if (!removed) ++eIt;
         }
 
+
         if (Player.Health <= 0 && state == PLAYING) {
             state = GAME_OVER;
             if (score > highScore) {
@@ -350,7 +381,7 @@ int main() {
 
             // health bar
             float w = 200.f * glm::max(Player.Health, 0.f) / 100.f;
-            drawEntity(Entity{ glm::vec2(10,10), glm::vec2(w,20), glm::vec3(0.8f,0.1f,0.1f),0 });
+            drawEntity(Entity{ glm::vec2(10,10), glm::vec2(w,20), glm::vec3(0.1f,0.8f,0.1f),0 });
 
             // you can add text to show score
         }
