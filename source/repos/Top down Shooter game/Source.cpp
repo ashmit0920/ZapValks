@@ -14,8 +14,8 @@
 #include <ctime>
 
 // screen
-const unsigned int SCR_WIDTH = 1600;
-const unsigned int SCR_HEIGHT = 1200;
+const unsigned int SCR_WIDTH = 1920;
+const unsigned int SCR_HEIGHT = 1080;
 
 // game states
 enum GameState { WELCOME, INSTRUCTIONS, PLAYING, GAME_OVER };
@@ -174,6 +174,9 @@ void keyCallback(GLFWwindow* w, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_I && action == GLFW_PRESS && state == WELCOME) {
         state = INSTRUCTIONS;
     }
+    if (key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS && state == INSTRUCTIONS) {
+        state = WELCOME;
+    }
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(w, true);
     }
@@ -305,7 +308,7 @@ int main() {
     Player.Health = 100.f;
 
     // build starfield
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 150; i++) {
         Stars.emplace_back(
             (float)(rand() % SCR_WIDTH),
             (float)(rand() % SCR_HEIGHT)
@@ -386,14 +389,42 @@ int main() {
         if (state == WELCOME) {
             glClearColor(0.05f, 0.05f, 0.2f, 1.f);
 
-            renderText("Welcome to the Game!", 200.0f, 200.0f, 2.0f, glm::vec3(1.0f, 1.0f, 1.0f)); //0.2f, 0.8f, 0.2f
-            renderText("Use W A S D to move", 240.0f, 300.0f, 1.2f, glm::vec3(0.7f, 0.7f, 0.7f));
-            renderText("Press SPACE to shoot", 240.0f, 340.0f, 1.2f, glm::vec3(0.7f, 0.7f, 0.7f));
-            renderText("Press ENTER to begin", 240.0f, 400.0f, 1.5f, glm::vec3(1.0f, 1.0f, 0.0f));
+            // starfield
+            for (auto& s : Stars) {
+                s.x -= 50.f * deltaTime;
+                if (s.x < 0) s.x = SCR_WIDTH;
+                drawEntity(Entity{ s, glm::vec2(2,2), glm::vec3(1.f),0 });
+            }
+
+            renderText("Welcome to the Game!", 600.0f, 200.0f, 6.0f, glm::vec3(0.2f, 0.8f, 0.2f));
+            renderText("Press I for Instructions", 700.0f, 350.0f, 4.0f, glm::vec3(0.7f, 0.7f, 0.7f));
+            renderText("Press ENTER to begin", 700.0f, 430.0f, 4.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+
+            renderText("Built By:", 700.0f, 650.0f, 4.0f, glm::vec3(0.2f, 0.8f, 0.2f));
+            renderText("Ashmit (102203790)", 700.0f, 730.0f, 4.0f, glm::vec3(0.7f, 0.7f, 0.7f));
+            renderText("Chandranshu (102203797)", 700.0f, 790.0f, 4.0f, glm::vec3(0.7f, 0.7f, 0.7f));
+            renderText("Sayiam (102203777)", 700.0f, 850.0f, 4.0f, glm::vec3(0.7f, 0.7f, 0.7f));
         }
+
         else if (state == INSTRUCTIONS) {
-            glClearColor(0.1f, 0.1f, 0.2f, 1.f);
+            glClearColor(0.05f, 0.05f, 0.2f, 1.f);
+
+            // starfield
+            for (auto& s : Stars) {
+                s.x -= 50.f * deltaTime;
+                if (s.x < 0) s.x = SCR_WIDTH;
+                drawEntity(Entity{ s, glm::vec2(2,2), glm::vec3(1.f),0 });
+            }
+
+            renderText("INSTRUCTIONS", 750.0f, 200.0f, 6.0f, glm::vec3(0.2f, 0.8f, 0.2f));
+            renderText("Use W and S to move Up and Down", 600.0f, 400.0f, 4.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+            renderText("Press SPACE to Shoot", 600.0f, 480.0f, 4.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+            renderText("Each missed enemy costs 20 HP", 600.0f, 560.0f, 4.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+            renderText("Each successful hit gains 10 score", 600.0f, 640.0f, 4.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+            renderText("Total health is 100 HP", 600.0f, 720.0f, 4.0f, glm::vec3(1.0f, 1.0f, 0.0f));
+            renderText("Press BACKSPACE to go to Main Menu", 600.0f, 800.0f, 4.0f, glm::vec3(1.0f, 1.0f, 0.0f));
         }
+
         else if (state == PLAYING) {
             // starfield
             for (auto& s : Stars) {
@@ -423,6 +454,7 @@ int main() {
             renderText(scoreStr, 20.0f, 560.0f, 1.2f, glm::vec3(1.0f, 1.0f, 1.0f));
             renderText(healthStr, 20.0f, 530.0f, 1.0f, glm::vec3(0.6f, 1.0f, 0.6f));
         }
+
         else if (state == GAME_OVER) {
             glClearColor(0.2f, 0.05f, 0.05f, 1.f);
             renderText("Game Over", 280.0f, 200.0f, 2.5f, glm::vec3(1.0f, 0.2f, 0.2f));
