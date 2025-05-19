@@ -7,12 +7,16 @@
 #include "stb_image.h"
 #include "stb_easy_font.h"
 
+#define MINIAUDIO_IMPLEMENTATION
+#include "SDL3/miniaudio.h"
+
 #include <iostream>
 #include <vector>
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
 #include <ctime>
+#include <algorithm>
 
 // screen
 const unsigned int SCR_WIDTH = 1920;
@@ -57,6 +61,9 @@ std::vector<glm::vec2> Stars;
 
 // scores
 unsigned int score = 0, highScore = 0;
+
+ma_engine engine;
+ma_sound shootSound;
 
 // shader program & quad
 unsigned int shaderProgram, VAO, VBO;
@@ -242,6 +249,7 @@ void processInput() {
 
     // shoot
     if (keys[GLFW_KEY_SPACE]) {
+        ma_sound_start(&shootSound);  // plays shoot sound
         static float lastShot = 0;
         if (glfwGetTime() - lastShot >= 0.2f) {
             Bullet b;
@@ -431,7 +439,7 @@ void main(){
     Player.Color = glm::vec3(0.2f, 0.6f, 1.f);
     Player.Health = 100.f;
 
-    // assign one of your player textures at random
+    // assign player texture
     GLuint playerTexID = playerTextures[0];
 
     // build starfield
@@ -444,6 +452,13 @@ void main(){
 
     loadHighScore();
     float spawnTimer = 0.f;
+
+    if (ma_engine_init(NULL, &engine) != MA_SUCCESS) {
+        std::cerr << "Failed to initialize MiniAudio engine.\n";
+    }
+    if (ma_sound_init_from_file(&engine, "D:/Shooter game assets/shoot_sound.mp3", 0, NULL, NULL, &shootSound) != MA_SUCCESS) {
+        std::cerr << "Failed to load shoot.wav\n";
+    }
 
     // game loop
     while (!glfwWindowShouldClose(window)) {
@@ -572,7 +587,7 @@ void main(){
                 drawTexturedEntity(e);
 
             // health bar
-            float w = 200.f * glm::max(Player.Health, 0.f) / 100.f;
+            float w = 200.f * (Player.Health > 0 ? Player.Health : 0.f) / 100.f;
             renderText("Healthbar", 20.0f, 1000.0f, 3.0f, glm::vec3(1.0f, 1.0f, 1.0f));
             drawEntity(Entity{ glm::vec2(10,10), glm::vec2(w,20), glm::vec3(0.1f,0.8f,0.1f),0 });
 
@@ -611,6 +626,9 @@ void main(){
         glfwSwapBuffers(window);
     }
 
+    ma_sound_uninit(&shootSound);
+    ma_engine_uninit(&engine);
     glfwTerminate();
+
     return 0;
 }
