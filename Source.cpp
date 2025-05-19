@@ -65,6 +65,7 @@ unsigned int shaderProgram, VAO, VBO;
 GLuint texVAO, texVBO;
 std::vector<GLuint> enemyTextures;
 unsigned int shaderProgramTex;
+std::vector<GLuint> playerTextures;
 
 // simple vertex+fragment
 const char* vertexSrc = R"(
@@ -181,6 +182,23 @@ void drawTexturedEntity(const Enemy& e) {
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 }
+
+// for soldier
+void drawTexturedSprite(glm::vec2 pos, glm::vec2 size, GLuint texID) {
+    glUseProgram(shaderProgramTex);
+    glm::mat4 proj = glm::ortho(0.f, (float)SCR_WIDTH, 0.f, (float)SCR_HEIGHT, -1.f, 1.f);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgramTex, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
+    glm::mat4 model = glm::translate(glm::mat4(1.f), glm::vec3(pos, 0.f))
+        * glm::scale(glm::mat4(1.f), glm::vec3(size, 1.f));
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgramTex, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texID);
+    glUniform1i(glGetUniformLocation(shaderProgramTex, "sprite"), 0);
+    glBindVertexArray(texVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+}
+
 
 // input
 bool keys[1024];
@@ -323,7 +341,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "CG Project", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "ZapValks", NULL, NULL);
     glfwMakeContextCurrent(window);
     glfwSetKeyCallback(window, keyCallback);
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
@@ -356,6 +374,9 @@ int main() {
     enemyTextures.push_back(loadTexture("D:/Shooter game assets/Valkyrie 1.png"));
     enemyTextures.push_back(loadTexture("D:/Shooter game assets/Valkyrie 2.png"));
     enemyTextures.push_back(loadTexture("D:/Shooter game assets/Valkyrie 3.png"));
+
+    // load player PNGs
+    playerTextures.push_back(loadTexture("D:/Shooter game assets/soldier.png"));
 
     // compile a second shader that samples a texture:
     const char* vsTex = R"(
@@ -406,9 +427,12 @@ void main(){
 
     // init player on left
     Player.Position = glm::vec2(20, SCR_HEIGHT / 2 - 25);
-    Player.Size = glm::vec2(50, 50);
+    Player.Size = glm::vec2(80, 80);
     Player.Color = glm::vec3(0.2f, 0.6f, 1.f);
     Player.Health = 100.f;
+
+    // assign one of your player textures at random
+    GLuint playerTexID = playerTextures[0];
 
     // build starfield
     for (int i = 0; i < 150; i++) {
@@ -433,7 +457,7 @@ void main(){
 
         // spawn
         spawnTimer += deltaTime;
-        if (state == PLAYING && spawnTimer >= 1.0f) {
+        if (state == PLAYING && spawnTimer >= 0.5f) {
             spawnEnemy();
             spawnTimer = 0;
         }
@@ -499,7 +523,7 @@ void main(){
                 drawEntity(Entity{ s, glm::vec2(2,2), glm::vec3(1.f),0 });
             }
 
-            renderText("Welcome to the Game!", 600.0f, 200.0f, 6.0f, glm::vec3(0.2f, 0.8f, 0.2f));
+            renderText("Welcome to ZapValks!", 600.0f, 200.0f, 6.0f, glm::vec3(0.2f, 0.8f, 0.2f));
             renderText("Press I for Instructions", 700.0f, 350.0f, 4.0f, glm::vec3(0.7f, 0.7f, 0.7f));
             renderText("Press ENTER to begin", 700.0f, 430.0f, 4.0f, glm::vec3(1.0f, 1.0f, 0.0f));
 
@@ -538,7 +562,8 @@ void main(){
             }
 
             // player
-            drawEntity(Player);
+            drawTexturedSprite(Player.Position, Player.Size, playerTexID);
+
             // bullets
             for (auto& b : Bullets)
                 drawEntity(Entity{ b.Position, glm::vec2(10,4), b.Color,0 });
@@ -561,17 +586,26 @@ void main(){
 
         else if (state == GAME_OVER) {
             glClearColor(0.2f, 0.05f, 0.05f, 1.f);
-            renderText("Game Over", 280.0f, 200.0f, 2.5f, glm::vec3(1.0f, 0.2f, 0.2f));
+
+            // starfield
+            for (auto& s : Stars) {
+                s.x -= 50.f * deltaTime;
+                if (s.x < 0) s.x = SCR_WIDTH;
+                // draw tiny white star
+                drawEntity(Entity{ s, glm::vec2(2,2), glm::vec3(1.f),0 });
+            }
+
+            renderText("GAME OVER", 720.0f, 200.0f, 8.0f, glm::vec3(1.0f, 0.2f, 0.2f));
 
             char finalScoreStr[64];
             sprintf_s(finalScoreStr, "Your Score: %d", score);
-            renderText(finalScoreStr, 300.0f, 280.0f, 1.5f, glm::vec3(1.0f, 1.0f, 1.0f));
+            renderText(finalScoreStr, 780.0f, 400.0f, 4.0f, glm::vec3(1.0f, 1.0f, 1.0f));
 
             char highScoreStr[64];
             sprintf_s(highScoreStr, "High Score: %d", highScore);
-            renderText(highScoreStr, 300.0f, 320.0f, 1.5f, glm::vec3(1.0f, 1.0f, 0.6f));
+            renderText(highScoreStr, 750.0f, 480.0f, 4.0f, glm::vec3(1.0f, 1.0f, 0.6f));
 
-            renderText("Press Enter to play again", 240.0f, 400.0f, 1.2f, glm::vec3(0.8f, 0.8f, 0.2f));
+            renderText("Press ENTER to play again", 680.0f, 560.0f, 4.0f, glm::vec3(0.8f, 0.8f, 0.2f));
         }
 
         glfwSwapBuffers(window);
