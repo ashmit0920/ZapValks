@@ -4,12 +4,12 @@
 
 ## Features
 
-- ?? Modern OpenGL rendering (GLFW + GLAD)
-- ?? PNG-based sprite textures
-- ?? Real-time input and shooting mechanics
-- ?? Sound effects using the lightweight [MiniAudio](https://miniaud.io/)
-- ? Starfield background and health bar
-- ?? In-game text rendering using `stb_easy_font`
+- Modern OpenGL rendering (GLFW + GLAD)
+- PNG-based sprite textures
+- Real-time input and shooting mechanics
+- Sound effects using the lightweight [MiniAudio](https://miniaud.io/)
+- Starfield background and health bar
+- In-game text rendering using `stb_easy_font`
 
 ## Controls
 
